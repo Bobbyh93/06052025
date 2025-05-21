@@ -1,0 +1,24 @@
+Thank you for purchasing the Ultimate Short Video Automation! You’re just a few steps away from streamlining your video creation and social media posting process. Please follow the instructions below to get started:
+
+Step 1: Import the Automation Blueprint in Make.com
+
+	1.	Prepare the attached JSON Blueprint file.
+	2.	Log in to your Make.com account.
+	3.	Navigate to the Scenarios tab and click on Import Blueprint.
+	4.	Upload the JSON file to import the automation workflow into your Make.com account.
+
+Step 2: Import the Airtable Base
+
+	1.	Visit the following Airtable link:
+	
+https://airtable.com/apptBdsGqcPr79ysM/shrp9lyGGukWDcZwC
+	
+	2.	Once on the page, click the “Copy Base” button to import the pre-configured base into your Airtable account.
+	3.	This Airtable base will serve as the central hub for managing your video content, scripts, images, and social posts.
+
+Step 3: Configure Your Accounts
+
+	1.	Ensure that your accounts for OpenAI, Replicate, LumaLabs, and ElevenLabs are set up and authenticated within Make.com to start generating video content automatically.
+	2.	If you’re using additional platforms like YouTube or Instagram, make sure they are also connected in Make.com for seamless posting.
+
+Thank you again for choosing our automation! We hope this helps you save time and enhance your content creation workflow.
