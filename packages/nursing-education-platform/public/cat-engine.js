@@ -7,7 +7,25 @@ export function getScopedItems(items, scope = "full", weakConcepts = []) {
   return approved.filter((item) => item.category === scope);
 }
 
-export function createSession({ id = `CAT-${Date.now()}`, length, startingAbility = 0 }) {
+export function getExposureItemIds(attempts = [], { lookbackAttempts = 2 } = {}) {
+  return [
+    ...new Set(
+      attempts
+        .slice(0, lookbackAttempts)
+        .flatMap((attempt) => attempt.itemIds || attempt.responses?.map((response) => response.itemId) || []),
+    ),
+  ];
+}
+
+export function applyExposureControls(items, exposureItemIds = []) {
+  const exposed = new Set(exposureItemIds);
+  return {
+    eligible: items.filter((item) => !exposed.has(item.id)),
+    excluded: items.filter((item) => exposed.has(item.id)),
+  };
+}
+
+export function createSession({ id = `CAT-${Date.now()}`, length, startingAbility = 0, exposureItemIds = [] }) {
   return {
     id,
     length,
@@ -16,11 +34,14 @@ export function createSession({ id = `CAT-${Date.now()}`, length, startingAbilit
     responses: [],
     used: [],
     coverage: {},
+    exposureItemIds,
   };
 }
 
-export function selectNextItem({ items, blueprint, session, scope = "full", weakConcepts = [] }) {
-  const pool = getScopedItems(items, scope, weakConcepts).filter((item) => !session.used.includes(item.id));
+export function selectNextItem({ items, blueprint, session, scope = "full", weakConcepts = [], exposureItemIds = session.exposureItemIds || [] }) {
+  const scopedPool = getScopedItems(items, scope, weakConcepts).filter((item) => !session.used.includes(item.id));
+  const { eligible, excluded } = applyExposureControls(scopedPool, exposureItemIds);
+  const pool = eligible;
   if (!pool.length) return null;
 
   const totalSeen = Object.values(session.coverage).reduce((sum, count) => sum + count, 0);
@@ -38,9 +59,10 @@ export function selectNextItem({ items, blueprint, session, scope = "full", weak
       .sort((a, b) => Math.abs(a.difficulty - session.ability) - Math.abs(b.difficulty - session.ability));
 
     if (candidates.length) {
+      const exposureNote = excluded.length ? ` ${excluded.length} recently exposed item${excluded.length === 1 ? " was" : "s were"} withheld.` : "";
       return {
         item: candidates[0],
-        reason: `Selected ${category.category} because it is under target coverage; difficulty ${candidates[0].difficulty.toFixed(1)} is closest to ability ${session.ability.toFixed(2)}.`,
+        reason: `Selected ${category.category} because it is under target coverage; difficulty ${candidates[0].difficulty.toFixed(1)} is closest to ability ${session.ability.toFixed(2)}.${exposureNote}`,
       };
     }
   }
@@ -48,7 +70,7 @@ export function selectNextItem({ items, blueprint, session, scope = "full", weak
   const fallback = pool.sort((a, b) => Math.abs(a.difficulty - session.ability) - Math.abs(b.difficulty - session.ability))[0];
   return {
     item: fallback,
-    reason: `Fallback selection by difficulty match near ability ${session.ability.toFixed(2)}.`,
+    reason: `Fallback selection by difficulty match near ability ${session.ability.toFixed(2)}; recently exposed items remain withheld.`,
   };
 }
 
@@ -88,6 +110,19 @@ export function summarizeSession(session, items) {
   };
 }
 
+export function createAttemptRecord(session, items, completedAt = new Date().toISOString()) {
+  const summary = summarizeSession(session, items);
+  return {
+    id: session.id,
+    completedAt,
+    itemIds: session.responses.map((response) => response.itemId),
+    scorePercent: summary.scorePercent,
+    finalAbilityEstimate: summary.finalAbilityEstimate,
+    weakConcepts: summary.weakConcepts,
+    exposureItemIds: session.exposureItemIds || [],
+  };
+}
+
 export function buildRemediationPlan(session, items) {
   const summary = summarizeSession(session, items);
 
@@ -122,6 +157,9 @@ export function buildSessionExport({ session, items }) {
       finalAbilityEstimate: summary.finalAbilityEstimate,
       weakConcepts: summary.weakConcepts,
     },
+    exposure: {
+      withheldItemIds: session.exposureItemIds || [],
+    },
     coverage: session.coverage,
     abilityHistory: session.abilityHistory.map((value) => Number(value.toFixed(2))),
     responses: session.responses.map((response) => {
@@ -152,6 +190,18 @@ export function evaluateGates(items, blueprint) {
     gate("Rationales", approved.every((item) => item.rationale), "all approved items include rationales"),
     gate("Scoring metadata", approved.every((item) => item.answer), "all approved items include answer metadata"),
   ];
+}
+
+export function evaluateExposureReadiness(items, attempts, { lookbackAttempts = 2 } = {}) {
+  const exposureItemIds = getExposureItemIds(attempts, { lookbackAttempts });
+  const eligible = applyExposureControls(getScopedItems(items), exposureItemIds).eligible.length;
+  return {
+    exposureItemIds,
+    eligible,
+    excluded: exposureItemIds.length,
+    pass: eligible > 0,
+    detail: eligible ? `${eligible} unexposed approved items available` : "clear attempt history or add new approved items",
+  };
 }
 
 export function buildCoverageMatrix(items, blueprint) {
