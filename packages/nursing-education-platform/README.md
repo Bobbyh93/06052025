@@ -24,15 +24,16 @@ No package install is required for the current prototype because the app is depe
 npm test
 ```
 
-The deterministic tests verify the default four-item adaptive path, ability updates, session export, weak-concept detection, readiness gates, blueprint coverage matrix, cross-session exposure control, and local attempt storage.
+The deterministic tests verify the default four-item adaptive path, ability updates, session export, weak-concept detection, readiness gates, blueprint coverage matrix, cross-session exposure control, stopping rules, and local attempt storage.
 
 ## Current Surface
 
 - CAT Practice: starts adaptive practice from the approved item pool.
+- Stopping Rules: supports fixed length, mastery threshold, stable estimate, and eligible-pool exhaustion stops.
 - Attempt History: saves recent local attempts and shows exposure-control status.
 - Exposure Controls: withholds recently delivered items from the next CAT session.
 - Results: shows score, ability estimate, weak concepts, remediation, coverage, and review queue.
-- Export: exposes session evidence as JSON, including withheld exposure item IDs.
+- Export: exposes session evidence as JSON, including withheld exposure item IDs and final stopping evidence.
 - Content Map: shows item-to-concept-to-lesson mapping.
 - Control Plane: shows mapping gates, exposure readiness, and blueprint category depth.
 
@@ -40,7 +41,7 @@ The deterministic tests verify the default four-item adaptive path, ability upda
 
 - `public/index.html`: app shell, layout, and styles.
 - `public/app.js`: browser UI rendering and interaction state.
-- `public/cat-engine.js`: CAT selection, scoring, remediation, export, gate, exposure, and coverage logic.
+- `public/cat-engine.js`: CAT selection, scoring, stopping, remediation, export, gate, exposure, and coverage logic.
 - `public/data.js`: NCLEX blueprint, build path, and seeded item bank.
 - `public/storage.js`: browser-safe local attempt persistence helpers.
 - `test/cat-engine.test.mjs`: deterministic engine and exposure-control checks.
@@ -56,7 +57,6 @@ Attempt history currently uses browser local storage. Production learner records
 ## Next Engineering Work
 
 - Add durable learner/session persistence behind the current local attempt model.
-- Add stopping rules for precision, max items, and mastery thresholds.
 - Add educator item authoring/import validation.
 - Add cohort analytics and remediation assignment workflow.
 - Add role-aware instructor and learner dashboards.
