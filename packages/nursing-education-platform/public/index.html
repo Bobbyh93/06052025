@@ -77,7 +77,8 @@
       .brand,
       .section-head,
       .actions,
-      .path-row {
+      .path-row,
+      .attempt-row {
         display: flex;
         align-items: center;
         gap: 14px;
@@ -85,7 +86,8 @@
 
       .topbar,
       .section-head,
-      .path-row {
+      .path-row,
+      .attempt-row {
         justify-content: space-between;
       }
 
@@ -132,6 +134,7 @@
       .nav,
       .build-path,
       .gate-list,
+      .attempt-list,
       .bar-list,
       .review-list,
       .item-list,
@@ -288,6 +291,7 @@
       .metric,
       .remediation-card,
       .path-row,
+      .attempt-row,
       .gate-row,
       .result-row,
       .map-row,
@@ -451,7 +455,8 @@
         }
 
         .topbar,
-        .section-head {
+        .section-head,
+        .attempt-row {
           display: grid;
         }
 
@@ -529,6 +534,16 @@
               <div class="actions" style="margin-top: 16px">
                 <button class="btn primary" id="startButton" type="button">Start CAT practice</button>
                 <button class="btn" id="resetButton" type="button">Reset prototype</button>
+              </div>
+              <div class="soft" style="margin-top: 16px">
+                <div class="section-head">
+                  <div>
+                    <h3>Attempt history and exposure controls</h3>
+                    <p class="muted small" id="exposureSummary">No saved attempts yet; all approved items are eligible.</p>
+                  </div>
+                  <button class="btn" id="clearHistoryButton" type="button">Clear attempts</button>
+                </div>
+                <div class="attempt-list" id="attemptList" style="margin-top: 10px"></div>
               </div>
               <div class="soft" style="margin-top: 16px">
                 <h3>Readiness gates</h3>
