@@ -7,8 +7,10 @@ import {
   createSession,
   evaluateExposureReadiness,
   evaluateGates,
+  evaluateStoppingRule,
   findItem,
   getExposureItemIds,
+  getRemainingEligibleItems,
   getScopedItems,
   recordResponse,
   selectNextItem,
@@ -34,6 +36,7 @@ const els = {
   scope: document.querySelector("#scopeSelect"),
   length: document.querySelector("#lengthSelect"),
   startAbility: document.querySelector("#startAbility"),
+  stopping: document.querySelector("#stoppingRule"),
   start: document.querySelector("#startButton"),
   reset: document.querySelector("#resetButton"),
   clearHistory: document.querySelector("#clearHistoryButton"),
@@ -58,6 +61,7 @@ const els = {
   score: document.querySelector("#scoreMetric"),
   finalAbility: document.querySelector("#abilityMetric"),
   weak: document.querySelector("#weakMetric"),
+  stop: document.querySelector("#stopMetric"),
   remediation: document.querySelector("#remediationPlan"),
   exportButton: document.querySelector("#exportButton"),
   exportPanel: document.querySelector("#exportPanel"),
@@ -93,7 +97,14 @@ function bindEvents() {
   els.clearHistory.addEventListener("click", clearAttemptHistory);
   els.confirm.addEventListener("click", confirmAnswer);
   els.next.addEventListener("click", advanceItem);
-  els.end.addEventListener("click", finishSession);
+  els.end.addEventListener("click", () =>
+    finishSession({
+      stop: true,
+      code: "learner_ended",
+      label: "Learner ended",
+      detail: "Session ended manually before a configured stopping rule fired.",
+    }),
+  );
   els.exportButton.addEventListener("click", toggleExport);
   els.retest.addEventListener("click", startWeakRetest);
   els.gateButton.addEventListener("click", renderGates);
@@ -144,7 +155,12 @@ function startSession() {
   }
 
   const length = Math.min(Number(els.length.value), eligiblePool.length);
-  state.session = createSession({ length, startingAbility: Number(els.startAbility.value), exposureItemIds });
+  state.session = createSession({
+    length,
+    startingAbility: Number(els.startAbility.value),
+    exposureItemIds,
+    stoppingRules: buildStoppingRules(length),
+  });
   state.selected = null;
   state.exportOpen = false;
   els.setup.classList.add("hidden");
@@ -154,7 +170,17 @@ function startSession() {
 }
 
 function advanceItem() {
-  if (!state.session || state.session.responses.length >= state.session.length) {
+  if (!state.session) return;
+
+  if (state.session.stop?.stop || state.session.responses.length >= state.session.length) {
+    state.session.stop ||= evaluateCurrentStoppingRule();
+    finishSession();
+    return;
+  }
+
+  const stop = evaluateCurrentStoppingRule();
+  if (stop.stop) {
+    state.session.stop = stop;
     finishSession();
     return;
   }
@@ -169,6 +195,7 @@ function advanceItem() {
   });
 
   if (!selection) {
+    state.session.stop = evaluateStoppingRule(state.session, { eligibleCount: 0 });
     finishSession();
     return;
   }
@@ -216,17 +243,23 @@ function confirmAnswer() {
     if (button.dataset.option === state.selected && !result.correct) button.classList.add("incorrect");
   });
   els.rationale.classList.remove("hidden");
-  els.rationale.innerHTML = `<h3>${result.correct ? "Correct" : "Needs review"}</h3><p class="muted small" style="margin-top: 6px">${item.rationale}</p><p class="small" style="margin-top: 8px"><strong>Ability:</strong> ${result.before.toFixed(2)} to ${result.after.toFixed(2)}</p>`;
+  const stop = evaluateCurrentStoppingRule();
+  if (stop.stop) state.session.stop = stop;
+  const stopLine = stop.stop ? `<p class="small" style="margin-top: 8px"><strong>Stopping rule:</strong> ${stop.detail}</p>` : "";
+  els.rationale.innerHTML = `<h3>${result.correct ? "Correct" : "Needs review"}</h3><p class="muted small" style="margin-top: 6px">${item.rationale}</p><p class="small" style="margin-top: 8px"><strong>Ability:</strong> ${result.before.toFixed(2)} to ${result.after.toFixed(2)}</p>${stopLine}`;
   els.confirm.classList.add("hidden");
   els.next.classList.remove("hidden");
-  els.next.textContent = state.session.responses.length >= state.session.length ? "Finish and review" : "Next item";
+  els.next.textContent = stop.stop || state.session.responses.length >= state.session.length ? "Finish and review" : "Next item";
 }
 
-function finishSession() {
+function finishSession(stopOverride = null) {
   if (!state.session) return;
 
   const finishedSession = state.session;
   const hasResponses = finishedSession.responses.length > 0;
+  if (hasResponses) {
+    finishedSession.stop = stopOverride || finishedSession.stop || evaluateCurrentStoppingRule(finishedSession);
+  }
   state.lastResults = hasResponses ? finishedSession : null;
 
   if (hasResponses) {
@@ -261,6 +294,9 @@ function renderResults() {
   els.score.textContent = `${summary.scorePercent}%`;
   els.finalAbility.textContent = summary.finalAbilityEstimate.toFixed(2);
   els.weak.textContent = summary.weakConcepts.length;
+  const stop = state.lastResults.stop || evaluateStoppingRule(state.lastResults);
+  els.stop.textContent = stop.label;
+  els.stop.title = stop.detail;
   els.exportButton.disabled = false;
   els.retest.disabled = summary.weakConcepts.length === 0;
   els.retest.textContent = summary.weakConcepts.length ? "Retest weak concepts" : "No weak concepts to retest";
@@ -343,6 +379,11 @@ function renderGates() {
       pass: exposure.pass,
       detail: `${exposure.detail}; ${exposure.excluded} recently exposed item${exposure.excluded === 1 ? "" : "s"} withheld`,
     },
+    {
+      name: "Stopping rules",
+      pass: true,
+      detail: "max item, mastery threshold, stable estimate, and eligible-pool exhaustion stops available",
+    },
   ];
   const html = gates.map((gate) => `<article class="gate-row"><div class="section-head"><div><h3>${gate.name}</h3><p class="muted small">${gate.detail}</p></div><span class="status ${gate.pass ? "pass" : "fail"}">${gate.pass ? "pass" : "blocked"}</span></div></article>`).join("");
   els.readiness.innerHTML = html;
@@ -373,7 +414,8 @@ function renderAttemptHistory() {
   els.attemptList.innerHTML = state.attemptHistory
     .map((attempt) => {
       const summary = formatAttemptSummary(attempt);
-      return `<article class="attempt-row"><div><h3>${summary.title}</h3><p class="muted small">${summary.detail}</p><p class="muted small">${summary.meta}</p></div><span class="status pass">saved</span></article>`;
+      const stopping = attempt.stopping?.label ? `${attempt.stopping.label} stop` : "stop saved";
+      return `<article class="attempt-row"><div><h3>${summary.title}</h3><p class="muted small">${summary.detail}</p><p class="muted small">${summary.meta}</p><p class="muted small">${stopping}</p></div><span class="status pass">saved</span></article>`;
     })
     .join("");
 }
@@ -399,4 +441,30 @@ function resetPrototype() {
   els.status.textContent = "Prototype mode";
   els.navResults.textContent = "empty";
   setView("practice");
+}
+
+function buildStoppingRules(maxItems) {
+  if (els.stopping.value === "mastery") {
+    return { maxItems, minItems: Math.min(3, maxItems), masteryAbility: 0.8 };
+  }
+
+  if (els.stopping.value === "precision") {
+    return { maxItems, minItems: Math.min(3, maxItems), precisionTarget: 0.08, precisionWindow: 3 };
+  }
+
+  return { maxItems, minItems: maxItems };
+}
+
+function evaluateCurrentStoppingRule(session = state.session) {
+  return evaluateStoppingRule(session, { eligibleCount: getRemainingEligibleCount(session) });
+}
+
+function getRemainingEligibleCount(session = state.session) {
+  return getRemainingEligibleItems({
+    items,
+    session,
+    scope: els.scope.value,
+    weakConcepts: state.weakScope || [],
+    exposureItemIds: session.exposureItemIds,
+  }).length;
 }
