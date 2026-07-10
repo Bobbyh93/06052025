@@ -6,7 +6,8 @@
   "description": "NCLEX-aligned CAT testing and remediation prototype for nursing education.",
   "scripts": {
     "dev": "node server.mjs",
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "test": "node test/cat-engine.test.mjs"
   },
   "keywords": [
     "nursing-education",
