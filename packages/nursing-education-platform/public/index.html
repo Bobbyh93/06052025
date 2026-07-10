@@ -251,6 +251,7 @@
       }
 
       .grid-3,
+      .grid-4,
       .metrics,
       .remediation-grid,
       .two-col {
@@ -259,9 +260,13 @@
       }
 
       .grid-3,
-      .metrics,
       .remediation-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid-4,
+      .metrics {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
       .two-col {
@@ -316,6 +321,11 @@
         margin-top: 8px;
         font-size: 32px;
         font-weight: 860;
+      }
+
+      .compact-value {
+        font-size: 20px;
+        line-height: 1.1;
       }
 
       .stem {
@@ -474,6 +484,7 @@
 
         .metrics,
         .grid-3,
+        .grid-4,
         .remediation-grid,
         .coverage-row {
           grid-template-columns: 1fr;
@@ -522,7 +533,7 @@
                 </div>
                 <span class="status pass">ready</span>
               </div>
-              <div class="grid-3">
+              <div class="grid-4">
                 <div class="field">
                   <label for="scopeSelect">Scope</label>
                   <select id="scopeSelect"></select>
@@ -540,6 +551,14 @@
                     <option value="-0.5">developing</option>
                     <option value="0" selected>baseline</option>
                     <option value="0.5">advancing</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="stoppingRule">Stopping rule</label>
+                  <select id="stoppingRule">
+                    <option value="fixed" selected>fixed length</option>
+                    <option value="mastery">mastery threshold</option>
+                    <option value="precision">stable estimate</option>
                   </select>
                 </div>
               </div>
@@ -606,6 +625,7 @@
                   <div class="metric"><p class="muted small">Score</p><p class="metric-value" id="scoreMetric">0%</p></div>
                   <div class="metric"><p class="muted small">Ability estimate</p><p class="metric-value" id="abilityMetric">0.00</p></div>
                   <div class="metric"><p class="muted small">Weak concepts</p><p class="metric-value" id="weakMetric">0</p></div>
+                  <div class="metric"><p class="muted small">Stop reason</p><p class="metric-value compact-value" id="stopMetric">Continue</p></div>
                 </div>
                 <section class="soft" style="margin-top: 16px">
                   <h2>Remediation plan</h2>
