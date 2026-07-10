@@ -97,6 +97,11 @@
 
       .brand {
         align-items: center;
+        min-width: 0;
+      }
+
+      .brand > div:last-child {
+        min-width: 0;
       }
 
       .mark {
@@ -458,6 +463,12 @@
         .section-head,
         .attempt-row {
           display: grid;
+        }
+
+        .brand {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr);
+          align-items: start;
         }
 
         .metrics,
