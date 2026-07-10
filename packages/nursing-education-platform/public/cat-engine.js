@@ -44,11 +44,12 @@ export function normalizeStoppingRules(rules = {}, fallbackLength = 4) {
   };
 }
 
-export function createSession({ id = `CAT-${Date.now()}`, length, startingAbility = 0, exposureItemIds = [], stoppingRules = {} }) {
+export function createSession({ id = `CAT-${Date.now()}`, learnerId = "prototype-learner", length, startingAbility = 0, exposureItemIds = [], stoppingRules = {} }) {
   const normalizedStoppingRules = normalizeStoppingRules({ ...stoppingRules, maxItems: stoppingRules.maxItems ?? length }, length);
 
   return {
     id,
+    learnerId,
     length: normalizedStoppingRules.maxItems,
     ability: startingAbility,
     abilityHistory: [startingAbility],
@@ -177,6 +178,8 @@ export function createAttemptRecord(session, items, completedAt = new Date().toI
   const stopping = session.stop || evaluateStoppingRule(session);
   return {
     id: session.id,
+    learnerId: session.learnerId || "prototype-learner",
+    sessionId: session.id,
     completedAt,
     itemIds: session.responses.map((response) => response.itemId),
     completedItems: summary.completedItems,
@@ -184,6 +187,12 @@ export function createAttemptRecord(session, items, completedAt = new Date().toI
     finalAbilityEstimate: summary.finalAbilityEstimate,
     weakConcepts: summary.weakConcepts,
     exposureItemIds: session.exposureItemIds || [],
+    responses: session.responses.map((response) => ({
+      itemId: response.itemId,
+      selected: response.selected,
+      correct: response.correct,
+    })),
+    coverage: session.coverage,
     stopping,
   };
 }
