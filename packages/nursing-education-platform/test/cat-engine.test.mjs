@@ -5,8 +5,11 @@ import {
   buildCoverageMatrix,
   buildRemediationPlan,
   buildSessionExport,
+  createAttemptRecord,
   createSession,
+  evaluateExposureReadiness,
   evaluateGates,
+  getExposureItemIds,
   getScopedItems,
   recordResponse,
   selectNextItem,
@@ -50,10 +53,39 @@ assert.equal(exportPayload.responses[0].itemId, "ITEM-001");
 assert.equal(exportPayload.responses[0].selectedResponse, "A");
 assert.equal(exportPayload.responses[0].correctResponse, "A");
 assert.deepEqual(exportPayload.abilityHistory, [0, 0.24, 0.55, 0.81, 1.08]);
+assert.deepEqual(exportPayload.exposure.withheldItemIds, []);
 
 const remediation = buildRemediationPlan(session, items);
 assert.equal(remediation.length, 3);
 assert.equal(remediation[0].title, "Maintain proficiency");
+
+const firstAttempt = createAttemptRecord(session, items, "2026-07-10T00:00:00.000Z");
+assert.deepEqual(firstAttempt.itemIds, ["ITEM-001", "ITEM-002", "ITEM-003", "ITEM-004"]);
+
+const exposureItemIds = getExposureItemIds([firstAttempt]);
+assert.deepEqual(exposureItemIds, ["ITEM-001", "ITEM-002", "ITEM-003", "ITEM-004"]);
+
+const exposureReadiness = evaluateExposureReadiness(items, [firstAttempt]);
+assert.equal(exposureReadiness.eligible, 4);
+assert.equal(exposureReadiness.excluded, 4);
+assert.equal(exposureReadiness.pass, true);
+
+const secondSession = createSession({ id: "CAT-SECOND", length: 4, startingAbility: 0, exposureItemIds });
+next(secondSession, "B", "ITEM-005");
+next(secondSession, "B", "ITEM-008");
+next(secondSession, "B", "ITEM-007");
+next(secondSession, "A", "ITEM-006");
+assert.equal(secondSession.responses.every((response) => !exposureItemIds.includes(response.itemId)), true);
+
+const secondExport = buildSessionExport({ session: secondSession, items });
+assert.deepEqual(secondExport.exposure.withheldItemIds, exposureItemIds);
+assert.deepEqual(secondExport.responses.map((response) => response.itemId), ["ITEM-005", "ITEM-008", "ITEM-007", "ITEM-006"]);
+
+const secondAttempt = createAttemptRecord(secondSession, items, "2026-07-10T00:10:00.000Z");
+const saturatedReadiness = evaluateExposureReadiness(items, [secondAttempt, firstAttempt]);
+assert.equal(saturatedReadiness.eligible, 0);
+assert.equal(saturatedReadiness.excluded, 8);
+assert.equal(saturatedReadiness.pass, false);
 
 const weakSession = createSession({ id: "CAT-WEAK", length: 1, startingAbility: 0 });
 const weakSelection = selectNextItem({ items, blueprint, session: weakSession });
