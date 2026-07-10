@@ -53,6 +53,7 @@ function normalizeAttempt(attempt) {
   const itemIds = Array.isArray(attempt.itemIds) ? attempt.itemIds.filter(Boolean) : [];
   const weakConcepts = Array.isArray(attempt.weakConcepts) ? attempt.weakConcepts.filter(Boolean) : [];
   const exposureItemIds = Array.isArray(attempt.exposureItemIds) ? attempt.exposureItemIds.filter(Boolean) : [];
+  const stopping = normalizeStopping(attempt.stopping);
 
   return {
     id: String(attempt.id || `CAT-${Date.now()}`),
@@ -63,6 +64,20 @@ function normalizeAttempt(attempt) {
     finalAbilityEstimate: Number.isFinite(Number(attempt.finalAbilityEstimate)) ? Number(attempt.finalAbilityEstimate) : 0,
     weakConcepts,
     exposureItemIds,
+    stopping,
+  };
+}
+
+function normalizeStopping(stopping) {
+  if (!stopping || typeof stopping !== "object") {
+    return { stop: false, code: "unknown", label: "Unknown", detail: "No stopping evidence saved." };
+  }
+
+  return {
+    stop: Boolean(stopping.stop),
+    code: String(stopping.code || "unknown"),
+    label: String(stopping.label || "Unknown"),
+    detail: String(stopping.detail || ""),
   };
 }
 
