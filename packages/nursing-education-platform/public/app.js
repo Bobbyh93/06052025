@@ -16,7 +16,7 @@ import {
   selectNextItem,
   summarizeSession,
 } from "./cat-engine.js";
-import { clearAttempts, formatAttemptSummary, loadAttempts, saveAttempt } from "./storage.js";
+import { clearAttempts, clearPersistentAttempts, formatAttemptSummary, loadAttempts, loadPersistentAttempts, saveAttempt, savePersistentAttempt } from "./storage.js";
 
 const state = {
   view: "practice",
@@ -27,6 +27,10 @@ const state = {
   weakScope: null,
   exportOpen: false,
   attemptHistory: [],
+  persistence: {
+    source: "local",
+    detail: "Browser local storage fallback",
+  },
 };
 
 const els = {
@@ -88,6 +92,7 @@ function init() {
   renderGates();
   renderMapping();
   bindEvents();
+  refreshPersistentAttempts();
 }
 
 function bindEvents() {
@@ -267,6 +272,7 @@ function finishSession(stopOverride = null) {
     state.attemptHistory = saveAttempt(attempt);
     renderAttemptHistory();
     renderGates();
+    persistAttempt(attempt);
   }
 
   state.session = null;
@@ -384,6 +390,14 @@ function renderGates() {
       pass: true,
       detail: "max item, mastery threshold, stable estimate, and eligible-pool exhaustion stops available",
     },
+    {
+      name: "Persistent learner records",
+      pass: state.persistence.source === "server",
+      detail:
+        state.persistence.source === "server"
+          ? state.persistence.detail
+          : `${state.persistence.detail}; use npm run dev for JSON-backed session history`,
+    },
   ];
   const html = gates.map((gate) => `<article class="gate-row"><div class="section-head"><div><h3>${gate.name}</h3><p class="muted small">${gate.detail}</p></div><span class="status ${gate.pass ? "pass" : "fail"}">${gate.pass ? "pass" : "blocked"}</span></div></article>`).join("");
   els.readiness.innerHTML = html;
@@ -401,9 +415,10 @@ function renderCoverageMatrix() {
 function renderAttemptHistory() {
   const exposure = evaluateExposureReadiness(items, state.attemptHistory);
   const excluded = exposure.exposureItemIds.length;
+  const persistenceLabel = state.persistence.source === "server" ? "Server persistence active" : "Local history fallback";
   els.exposureSummary.textContent = excluded
-    ? `${excluded} recently exposed item${excluded === 1 ? "" : "s"} withheld; ${exposure.eligible} unexposed approved item${exposure.eligible === 1 ? "" : "s"} available.`
-    : "No saved attempts yet; all approved items are eligible.";
+    ? `${excluded} recently exposed item${excluded === 1 ? "" : "s"} withheld; ${exposure.eligible} unexposed approved item${exposure.eligible === 1 ? "" : "s"} available. ${persistenceLabel}.`
+    : `No saved attempts yet; all approved items are eligible. ${persistenceLabel}.`;
   els.clearHistory.disabled = state.attemptHistory.length === 0;
 
   if (!state.attemptHistory.length) {
@@ -425,6 +440,7 @@ function clearAttemptHistory() {
   renderAttemptHistory();
   renderGates();
   els.status.textContent = "Attempt history cleared";
+  clearPersistentAttempts().then(applyPersistenceResult);
 }
 
 function resetPrototype() {
@@ -467,4 +483,22 @@ function getRemainingEligibleCount(session = state.session) {
     weakConcepts: state.weakScope || [],
     exposureItemIds: session.exposureItemIds,
   }).length;
+}
+
+function refreshPersistentAttempts() {
+  loadPersistentAttempts().then(applyPersistenceResult);
+}
+
+function persistAttempt(attempt) {
+  savePersistentAttempt(attempt).then(applyPersistenceResult);
+}
+
+function applyPersistenceResult(result) {
+  state.attemptHistory = result.attempts;
+  state.persistence = {
+    source: result.source,
+    detail: result.detail,
+  };
+  renderAttemptHistory();
+  renderGates();
 }
