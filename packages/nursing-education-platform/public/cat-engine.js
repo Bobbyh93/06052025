@@ -25,16 +25,39 @@ export function applyExposureControls(items, exposureItemIds = []) {
   };
 }
 
-export function createSession({ id = `CAT-${Date.now()}`, length, startingAbility = 0, exposureItemIds = [] }) {
+export function getRemainingEligibleItems({ items, session, scope = "full", weakConcepts = [], exposureItemIds = session.exposureItemIds || [] }) {
+  const scopedPool = getScopedItems(items, scope, weakConcepts).filter((item) => !session.used.includes(item.id));
+  return applyExposureControls(scopedPool, exposureItemIds).eligible;
+}
+
+export function normalizeStoppingRules(rules = {}, fallbackLength = 4) {
+  const maxItems = normalizePositiveInteger(rules.maxItems ?? rules.length, fallbackLength || 4);
+  const minItems = Math.min(normalizePositiveInteger(rules.minItems, 1), maxItems);
+  const precisionWindow = Math.max(2, normalizePositiveInteger(rules.precisionWindow, 3));
+
+  return {
+    maxItems,
+    minItems,
+    masteryAbility: normalizeNullableNumber(rules.masteryAbility),
+    precisionTarget: normalizeNullableNumber(rules.precisionTarget),
+    precisionWindow,
+  };
+}
+
+export function createSession({ id = `CAT-${Date.now()}`, length, startingAbility = 0, exposureItemIds = [], stoppingRules = {} }) {
+  const normalizedStoppingRules = normalizeStoppingRules({ ...stoppingRules, maxItems: stoppingRules.maxItems ?? length }, length);
+
   return {
     id,
-    length,
+    length: normalizedStoppingRules.maxItems,
     ability: startingAbility,
     abilityHistory: [startingAbility],
     responses: [],
     used: [],
     coverage: {},
     exposureItemIds,
+    stoppingRules: normalizedStoppingRules,
+    stop: null,
   };
 }
 
@@ -87,6 +110,45 @@ export function recordResponse(session, item, selected) {
   return { correct, before, after };
 }
 
+export function evaluateStoppingRule(session, { eligibleCount = null } = {}) {
+  const rules = normalizeStoppingRules(session.stoppingRules || {}, session.length);
+  const completed = session.responses.length;
+
+  if (!completed) {
+    return continueOutcome(`0 of ${rules.maxItems} item${rules.maxItems === 1 ? "" : "s"} completed`);
+  }
+
+  if (completed >= rules.minItems && rules.masteryAbility !== null && session.ability >= rules.masteryAbility) {
+    return stopOutcome(
+      "mastery_threshold",
+      "Mastery threshold",
+      `Ability ${session.ability.toFixed(2)} reached threshold ${rules.masteryAbility.toFixed(2)} after ${completed} item${completed === 1 ? "" : "s"}.`,
+    );
+  }
+
+  if (completed >= Math.max(rules.minItems, rules.precisionWindow) && rules.precisionTarget !== null) {
+    const recentChanges = recentAbilityChanges(session.abilityHistory, rules.precisionWindow);
+    const maxRecentChange = recentChanges.length ? Math.max(...recentChanges) : Infinity;
+    if (recentChanges.length >= rules.precisionWindow && maxRecentChange <= rules.precisionTarget) {
+      return stopOutcome(
+        "precision_target",
+        "Stable estimate",
+        `Recent ability movement stayed within ${rules.precisionTarget.toFixed(2)} over ${rules.precisionWindow} updates.`,
+      );
+    }
+  }
+
+  if (completed >= rules.maxItems) {
+    return stopOutcome("max_items", "Max items", `${completed} of ${rules.maxItems} configured items completed.`);
+  }
+
+  if (eligibleCount === 0) {
+    return stopOutcome("eligible_pool_exhausted", "Eligible pool exhausted", "No eligible unexposed approved items remain for this session scope.");
+  }
+
+  return continueOutcome(`${completed} of ${rules.maxItems} configured items completed`);
+}
+
 export function updateAbility(ability, difficulty, correct) {
   const mismatch = Math.abs(difficulty - ability);
   const base = 0.22 + Math.min(0.18, mismatch * 0.08);
@@ -112,14 +174,17 @@ export function summarizeSession(session, items) {
 
 export function createAttemptRecord(session, items, completedAt = new Date().toISOString()) {
   const summary = summarizeSession(session, items);
+  const stopping = session.stop || evaluateStoppingRule(session);
   return {
     id: session.id,
     completedAt,
     itemIds: session.responses.map((response) => response.itemId),
+    completedItems: summary.completedItems,
     scorePercent: summary.scorePercent,
     finalAbilityEstimate: summary.finalAbilityEstimate,
     weakConcepts: summary.weakConcepts,
     exposureItemIds: session.exposureItemIds || [],
+    stopping,
   };
 }
 
@@ -146,6 +211,7 @@ export function buildRemediationPlan(session, items) {
 
 export function buildSessionExport({ session, items }) {
   const summary = summarizeSession(session, items);
+  const stopping = session.stop || evaluateStoppingRule(session);
 
   return {
     sessionId: session.id,
@@ -160,6 +226,7 @@ export function buildSessionExport({ session, items }) {
     exposure: {
       withheldItemIds: session.exposureItemIds || [],
     },
+    stopping,
     coverage: session.coverage,
     abilityHistory: session.abilityHistory.map((value) => Number(value.toFixed(2))),
     responses: session.responses.map((response) => {
@@ -225,6 +292,30 @@ export function findItem(items, id) {
 
 function gate(name, pass, detail) {
   return { name, pass, detail };
+}
+
+function stopOutcome(code, label, detail) {
+  return { stop: true, code, label, detail };
+}
+
+function continueOutcome(detail) {
+  return { stop: false, code: "continue", label: "Continue", detail };
+}
+
+function recentAbilityChanges(history, windowSize) {
+  const recent = history.slice(-1 * (windowSize + 1));
+  return recent.slice(1).map((value, index) => Number(Math.abs(value - recent[index]).toFixed(4)));
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : fallback;
+}
+
+function normalizeNullableNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function clamp(value, min, max) {
