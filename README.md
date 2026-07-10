@@ -1,64 +1,56 @@
-# ElevenLabs Monorepo for NPM Package
+# Harrity Nursing Education Platform
 
-This repository contains multiple package published on npm under `@elevenlabs` scope. 
-Separate packages can be found in the `packages` folder.
+This branch is being organized around a nursing education product system for NCLEX-aligned testing, review learning, content mapping, and CAT-style adaptive practice.
 
-![LOGO](https://github.com/elevenlabs/elevenlabs-python/assets/12028621/21267d89-5e82-4e7e-9c81-caf30b237683)
-[![Discord](https://badgen.net/badge/black/ElevenLabs/icon?icon=discord&label)](https://discord.gg/elevenlabs)
-[![Twitter](https://badgen.net/badge/black/elevenlabsio/icon?icon=twitter&label)](https://twitter.com/elevenlabsio)
+## Product Direction
 
+The platform connects four workstreams into one coherent system:
 
-## Installation
+- **CAT testing:** adaptive nursing practice that selects items by blueprint category, concept tags, and difficulty.
+- **Review learning:** every missed item routes to rationales, weak concepts, and focused remediation.
+- **Content mapping:** lessons, concepts, items, and NCLEX client-needs categories stay traceable.
+- **Educator controls:** item-bank depth, mapping quality, and pilot-readiness gates are visible before scaling.
 
-Install `pnpm` globally.
+## What Is In This Branch
 
-```shell
-npm i pnpm -g
-```
+- `docs/nursing-education-information-system.md` defines the product backbone, data model, CAT operating model, and pilot sequence.
+- `packages/nursing-education-platform/` contains the first runnable web product surface: CAT Testing Studio.
+- Existing package folders from the source template remain in the repository, but this branch's product focus is the nursing education platform.
 
-Setup the monorepo and install dependencies in the root of the repository.
-This will also install dependencies for all the packages in the packages folder, and symlink local packages where appropriate.
+## Run The CAT Studio Prototype
 
-```shell
-pnpm i
-```
-
-## Development
-
-To develop a package, run dev script in the root of a package.
-This will start a watch mode for the package.
+From the repository root:
 
 ```shell
-pnpm run dev
+cd packages/nursing-education-platform
+npm run dev
 ```
 
-To use the package inside within another project, use `pnpm link`.
+Then open:
 
-```shell
-# inside of the package root
-pnpm link --global
-
-# inside of your project
-pnpm link --global <pkg>
+```text
+http://127.0.0.1:8765
 ```
 
-You can run `pnpm run dev` to automatically apply changes to your project. 
-Note that many projects don't watch for changes inside of `node_modules` folder to rebuild.
-You might have to restart the application, or modify you setup to watch for node_modules (possible development performance implications).
+The prototype is dependency-free and uses local sample data embedded in the page.
 
+## Current CAT Studio Capabilities
 
-Don't forget to run the `unlink` equivalent once you're done, to prevent confusion in the future.
+- Start a four-item adaptive smoke-test session.
+- Select items by under-covered NCLEX-RN client-needs category and difficulty match.
+- Track score, ability estimate, blueprint coverage, and ability trend.
+- Generate a remediation plan from weak concepts and linked lesson IDs.
+- Export session evidence as JSON for instructor review or future analytics.
+- Inspect educator readiness gates and category-depth coverage.
 
-## Creating New Package
+## Prototype Boundary
 
-You can always just add a new folder with package.json inside of `packages` folder. 
-Alternatively run `pnpm run create --name=[package-name]` in the root of this repository to create a new package from template.
+This is an educational CAT-style simulator and product prototype. It does not claim official NCLEX scoring equivalence, psychometric calibration, or production exam readiness.
 
-## Publishing
+## Next Build Priorities
 
-To publish a package from the packages folder, create new GitHub release. 
-Since there are multiple packages contained in this folder, the release name/tag should follow format `<package>@version`.
-The release will trigger GitHub action publishing the package, and the tag will be used to publish specific package. 
-
-The GitHub action will only run the publish command. Make sure you've update the version number manually in `package.json`.  
-
+1. Persist attempts, learner profiles, and remediation assignments.
+2. Add item exposure controls and repeat-item prevention across sessions.
+3. Add stopping rules for precision, max items, and mastery thresholds.
+4. Build educator item authoring/import with required concept, lesson, rationale, and blueprint mapping.
+5. Connect cohort analytics to weak concepts, misconceptions, and category readiness.
