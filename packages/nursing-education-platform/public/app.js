@@ -3,14 +3,18 @@ import {
   buildCoverageMatrix,
   buildRemediationPlan,
   buildSessionExport,
+  createAttemptRecord,
   createSession,
+  evaluateExposureReadiness,
   evaluateGates,
   findItem,
+  getExposureItemIds,
   getScopedItems,
   recordResponse,
   selectNextItem,
   summarizeSession,
 } from "./cat-engine.js";
+import { clearAttempts, formatAttemptSummary, loadAttempts, saveAttempt } from "./storage.js";
 
 const state = {
   view: "practice",
@@ -20,6 +24,7 @@ const state = {
   lastResults: null,
   weakScope: null,
   exportOpen: false,
+  attemptHistory: [],
 };
 
 const els = {
@@ -31,10 +36,13 @@ const els = {
   startAbility: document.querySelector("#startAbility"),
   start: document.querySelector("#startButton"),
   reset: document.querySelector("#resetButton"),
+  clearHistory: document.querySelector("#clearHistoryButton"),
   setup: document.querySelector("#setupScreen"),
   exam: document.querySelector("#examScreen"),
   status: document.querySelector("#sessionStatus"),
   readiness: document.querySelector("#readinessList"),
+  attemptList: document.querySelector("#attemptList"),
+  exposureSummary: document.querySelector("#exposureSummary"),
   progress: document.querySelector("#progressTitle"),
   reason: document.querySelector("#selectionReason"),
   ability: document.querySelector("#abilityPill"),
@@ -69,8 +77,10 @@ const els = {
 init();
 
 function init() {
+  state.attemptHistory = loadAttempts();
   renderScopeOptions();
   renderBuildPath();
+  renderAttemptHistory();
   renderGates();
   renderMapping();
   bindEvents();
@@ -80,6 +90,7 @@ function bindEvents() {
   els.nav.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
   els.start.addEventListener("click", startSession);
   els.reset.addEventListener("click", resetPrototype);
+  els.clearHistory.addEventListener("click", clearAttemptHistory);
   els.confirm.addEventListener("click", confirmAnswer);
   els.next.addEventListener("click", advanceItem);
   els.end.addEventListener("click", finishSession);
@@ -116,14 +127,29 @@ function renderBuildPath() {
 }
 
 function startSession() {
-  const pool = getScopedItems(items, els.scope.value, state.weakScope || []);
-  const length = Math.min(Number(els.length.value), pool.length);
-  state.session = createSession({ length, startingAbility: Number(els.startAbility.value) });
+  const exposureItemIds = getExposureItemIds(state.attemptHistory);
+  const exposed = new Set(exposureItemIds);
+  const scopedPool = getScopedItems(items, els.scope.value, state.weakScope || []);
+  const eligiblePool = scopedPool.filter((item) => !exposed.has(item.id));
+
+  if (!scopedPool.length) {
+    els.status.textContent = "No eligible items for scope";
+    return;
+  }
+
+  if (!eligiblePool.length) {
+    els.status.textContent = "Exposure pool exhausted";
+    renderAttemptHistory();
+    return;
+  }
+
+  const length = Math.min(Number(els.length.value), eligiblePool.length);
+  state.session = createSession({ length, startingAbility: Number(els.startAbility.value), exposureItemIds });
   state.selected = null;
   state.exportOpen = false;
   els.setup.classList.add("hidden");
   els.exam.classList.remove("hidden");
-  els.status.textContent = "Session in progress";
+  els.status.textContent = exposureItemIds.length ? "Session in progress; exposure active" : "Session in progress";
   advanceItem();
 }
 
@@ -139,6 +165,7 @@ function advanceItem() {
     session: state.session,
     scope: els.scope.value,
     weakConcepts: state.weakScope || [],
+    exposureItemIds: state.session.exposureItemIds,
   });
 
   if (!selection) {
@@ -197,15 +224,26 @@ function confirmAnswer() {
 
 function finishSession() {
   if (!state.session) return;
-  state.lastResults = state.session;
+
+  const finishedSession = state.session;
+  const hasResponses = finishedSession.responses.length > 0;
+  state.lastResults = hasResponses ? finishedSession : null;
+
+  if (hasResponses) {
+    const attempt = createAttemptRecord(finishedSession, items);
+    state.attemptHistory = saveAttempt(attempt);
+    renderAttemptHistory();
+    renderGates();
+  }
+
   state.session = null;
   state.current = null;
   state.selected = null;
   els.setup.classList.remove("hidden");
   els.exam.classList.add("hidden");
   els.status.textContent = "Prototype mode";
-  els.navResults.textContent = "ready";
-  setView("results");
+  els.navResults.textContent = hasResponses ? "ready" : "empty";
+  setView(hasResponses ? "results" : "practice");
 }
 
 function renderResults() {
@@ -297,7 +335,15 @@ function renderMapping() {
 }
 
 function renderGates() {
-  const gates = evaluateGates(items, blueprint);
+  const exposure = evaluateExposureReadiness(items, state.attemptHistory);
+  const gates = [
+    ...evaluateGates(items, blueprint),
+    {
+      name: "Exposure control",
+      pass: exposure.pass,
+      detail: `${exposure.detail}; ${exposure.excluded} recently exposed item${exposure.excluded === 1 ? "" : "s"} withheld`,
+    },
+  ];
   const html = gates.map((gate) => `<article class="gate-row"><div class="section-head"><div><h3>${gate.name}</h3><p class="muted small">${gate.detail}</p></div><span class="status ${gate.pass ? "pass" : "fail"}">${gate.pass ? "pass" : "blocked"}</span></div></article>`).join("");
   els.readiness.innerHTML = html;
   els.controlGates.innerHTML = html;
@@ -309,6 +355,34 @@ function renderCoverageMatrix() {
   els.coverageMatrix.innerHTML = buildCoverageMatrix(items, blueprint)
     .map((entry) => `<article class="coverage-row"><span><strong>${entry.category}</strong><br><span class="muted small">Target midpoint ${entry.target}%</span></span><span>${entry.count}</span><span><span class="muted small">${entry.status}</span><span class="depth-meter"><span class="depth-fill" style="width: ${entry.depthPercent}%"></span></span></span></article>`)
     .join("");
+}
+
+function renderAttemptHistory() {
+  const exposure = evaluateExposureReadiness(items, state.attemptHistory);
+  const excluded = exposure.exposureItemIds.length;
+  els.exposureSummary.textContent = excluded
+    ? `${excluded} recently exposed item${excluded === 1 ? "" : "s"} withheld; ${exposure.eligible} unexposed approved item${exposure.eligible === 1 ? "" : "s"} available.`
+    : "No saved attempts yet; all approved items are eligible.";
+  els.clearHistory.disabled = state.attemptHistory.length === 0;
+
+  if (!state.attemptHistory.length) {
+    els.attemptList.innerHTML = `<article class="attempt-row"><div><h3>No saved attempts</h3><p class="muted small">Complete a CAT practice session to activate cross-session exposure control.</p></div><span class="status pass">open</span></article>`;
+    return;
+  }
+
+  els.attemptList.innerHTML = state.attemptHistory
+    .map((attempt) => {
+      const summary = formatAttemptSummary(attempt);
+      return `<article class="attempt-row"><div><h3>${summary.title}</h3><p class="muted small">${summary.detail}</p><p class="muted small">${summary.meta}</p></div><span class="status pass">saved</span></article>`;
+    })
+    .join("");
+}
+
+function clearAttemptHistory() {
+  state.attemptHistory = clearAttempts();
+  renderAttemptHistory();
+  renderGates();
+  els.status.textContent = "Attempt history cleared";
 }
 
 function resetPrototype() {
