@@ -29,6 +29,7 @@ const first = saveAttempt(
     finalAbilityEstimate: 0.18,
     weakConcepts: ["delegation"],
     exposureItemIds: [],
+    stopping: { stop: true, code: "max_items", label: "Max items", detail: "2 of 2 configured items completed." },
   },
   storage,
 );
@@ -44,6 +45,7 @@ const second = saveAttempt(
     finalAbilityEstimate: 0.4,
     weakConcepts: [],
     exposureItemIds: ["ITEM-001", "ITEM-002"],
+    stopping: { stop: true, code: "mastery_threshold", label: "Mastery threshold", detail: "Ability reached threshold." },
   },
   storage,
 );
@@ -52,6 +54,8 @@ assert.deepEqual(second.map((attempt) => attempt.id), ["CAT-B", "CAT-A"]);
 const reloaded = loadAttempts(storage);
 assert.deepEqual(reloaded.map((attempt) => attempt.id), ["CAT-B", "CAT-A"]);
 assert.deepEqual(reloaded[0].exposureItemIds, ["ITEM-001", "ITEM-002"]);
+assert.equal(reloaded[0].stopping.code, "mastery_threshold");
+assert.equal(reloaded[1].stopping.label, "Max items");
 
 const summary = formatAttemptSummary(reloaded[0]);
 assert.equal(summary.title, "100% score | ability 0.40");
