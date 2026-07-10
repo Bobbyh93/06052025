@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 
-import { clearAttempts, formatAttemptSummary, loadAttempts, saveAttempt, STORAGE_KEY } from "../public/storage.js";
+import {
+  clearAttempts,
+  clearPersistentAttempts,
+  formatAttemptSummary,
+  loadAttempts,
+  loadPersistentAttempts,
+  saveAttempt,
+  savePersistentAttempt,
+  STORAGE_KEY,
+} from "../public/storage.js";
 
 function createMemoryStorage() {
   const values = new Map();
@@ -69,4 +78,69 @@ assert.equal(loadAttempts(storage).length, 1);
 clearAttempts(storage);
 assert.deepEqual(loadAttempts(storage), []);
 
+const apiStorage = createMemoryStorage();
+const apiAttempt = {
+  id: "CAT-API",
+  completedAt: "2026-07-10T00:20:00.000Z",
+  itemIds: ["ITEM-004"],
+  scorePercent: 100,
+  finalAbilityEstimate: 0.55,
+  weakConcepts: [],
+  exposureItemIds: ["ITEM-001"],
+  responses: [{ itemId: "ITEM-004", selected: "B", correct: true }],
+  coverage: { "Safe and Effective Care Environment": 1 },
+  stopping: { stop: true, code: "max_items", label: "Max items", detail: "1 of 1 configured items completed." },
+};
+
+const fetchCalls = [];
+const fetchImpl = async (endpoint, options = {}) => {
+  fetchCalls.push({ endpoint, options });
+  if (options.method === "GET") {
+    return jsonResponse({ source: "server", detail: "test server", attempts: [apiAttempt] });
+  }
+  if (options.method === "POST") {
+    const parsed = JSON.parse(options.body);
+    return jsonResponse({ source: "server", detail: "test server", attempts: [parsed.attempt] });
+  }
+  if (options.method === "DELETE") {
+    return jsonResponse({ source: "server", detail: "test server", attempts: [] });
+  }
+  return jsonResponse({ error: "bad method" }, false, 405);
+};
+
+const loaded = await loadPersistentAttempts({ fetchImpl, storage: apiStorage });
+assert.equal(loaded.source, "server");
+assert.equal(loaded.attempts[0].id, "CAT-API");
+assert.equal(loaded.attempts[0].responses[0].itemId, "ITEM-004");
+assert.equal(loadAttempts(apiStorage)[0].id, "CAT-API");
+
+const saved = await savePersistentAttempt({ ...apiAttempt, id: "CAT-POST" }, { fetchImpl, storage: apiStorage });
+assert.equal(saved.source, "server");
+assert.equal(saved.attempts[0].id, "CAT-POST");
+assert.equal(fetchCalls.at(-1).options.method, "POST");
+
+const cleared = await clearPersistentAttempts({ fetchImpl, storage: apiStorage });
+assert.equal(cleared.source, "server");
+assert.deepEqual(cleared.attempts, []);
+
+const fallbackStorage = createMemoryStorage();
+const fallback = await savePersistentAttempt(apiAttempt, {
+  fetchImpl: async () => {
+    throw new Error("offline");
+  },
+  storage: fallbackStorage,
+});
+assert.equal(fallback.source, "local");
+assert.equal(fallback.attempts[0].id, "CAT-API");
+
 console.log("CAT storage tests passed");
+
+function jsonResponse(payload, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    async json() {
+      return payload;
+    },
+  };
+}
