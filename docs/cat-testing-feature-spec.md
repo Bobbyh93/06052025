@@ -16,16 +16,21 @@ It demonstrates:
 - CAT-style next-item selection by blueprint gap and difficulty match
 - Ability estimate changes after each response
 - Result summary, weak concepts, remediation plan, and review queue
+- Local attempt history in browser storage
+- Cross-session exposure prevention for recently delivered items
 - Session evidence export as JSON
-- Educator gates and blueprint coverage matrix
+- Educator gates, exposure readiness, and blueprint coverage matrix
 
 ## Current Implementation Structure
 
 - `public/data.js`: seeded NCLEX blueprint categories, build path, and sample item bank.
-- `public/cat-engine.js`: deterministic CAT selector, scoring, remediation, export, gate, and coverage functions.
+- `public/cat-engine.js`: deterministic CAT selector, scoring, remediation, export, exposure, gate, and coverage functions.
+- `public/storage.js`: local attempt save/load/clear helpers used by the browser prototype.
 - `public/app.js`: browser rendering and interaction state.
 - `public/index.html`: dependency-free app shell and styles.
-- `test/cat-engine.test.mjs`: deterministic CAT engine regression checks.
+- `test/cat-engine.test.mjs`: deterministic CAT engine and exposure-control regression checks.
+- `test/storage.test.mjs`: browser-storage normalization and persistence checks.
+- `test/run-tests.mjs`: package test runner.
 
 ## Required Production Entities
 
@@ -99,17 +104,21 @@ The prototype does not claim:
 - Production persistence
 - LMS integration
 
-## Completed Engineering Slice
+## Completed Engineering Slices
 
 - Moved embedded sample data into `public/data.js`.
 - Moved CAT selection, scoring, gates, remediation, and export logic into `public/cat-engine.js`.
 - Added deterministic engine tests with `npm test`.
 - Kept the browser workflow dependency-free and runnable through `npm run dev`.
+- Added local attempt save/load/clear through `public/storage.js`.
+- Added cross-session item exposure prevention based on recent attempts.
+- Added attempt history and exposure-readiness UI to the practice and control-plane views.
+- Added storage and exposure regression tests to the package test runner.
 
 ## Next Engineering Slice
 
-1. Add persistent session save/load.
-2. Add item exposure and repeat-item prevention across sessions.
-3. Add stopping rules for precision, max items, and mastery thresholds.
-4. Add educator item import validation.
-5. Add cohort analytics and remediation assignment workflow.
+1. Add durable backend persistence for learners, CAT sessions, responses, and item exposure records.
+2. Add stopping rules for precision, max items, mastery thresholds, and eligible-pool exhaustion messaging.
+3. Add educator item import validation for the metadata contract.
+4. Add concept-level mastery estimates and remediation assignment status.
+5. Add cohort analytics and role-aware instructor/learner dashboards.
