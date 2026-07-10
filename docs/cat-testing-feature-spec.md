@@ -18,17 +18,18 @@ It demonstrates:
 - Result summary, weak concepts, remediation plan, and review queue
 - Local attempt history in browser storage
 - Cross-session exposure prevention for recently delivered items
+- Configurable stopping rules for fixed length, mastery threshold, stable estimate, and eligible-pool exhaustion
 - Session evidence export as JSON
 - Educator gates, exposure readiness, and blueprint coverage matrix
 
 ## Current Implementation Structure
 
 - `public/data.js`: seeded NCLEX blueprint categories, build path, and sample item bank.
-- `public/cat-engine.js`: deterministic CAT selector, scoring, remediation, export, exposure, gate, and coverage functions.
+- `public/cat-engine.js`: deterministic CAT selector, scoring, stopping, remediation, export, exposure, gate, and coverage functions.
 - `public/storage.js`: local attempt save/load/clear helpers used by the browser prototype.
 - `public/app.js`: browser rendering and interaction state.
 - `public/index.html`: dependency-free app shell and styles.
-- `test/cat-engine.test.mjs`: deterministic CAT engine and exposure-control regression checks.
+- `test/cat-engine.test.mjs`: deterministic CAT engine, stopping-rule, and exposure-control regression checks.
 - `test/storage.test.mjs`: browser-storage normalization and persistence checks.
 - `test/run-tests.mjs`: package test runner.
 
@@ -114,11 +115,13 @@ The prototype does not claim:
 - Added cross-session item exposure prevention based on recent attempts.
 - Added attempt history and exposure-readiness UI to the practice and control-plane views.
 - Added storage and exposure regression tests to the package test runner.
+- Added fixed-length, mastery-threshold, stable-estimate, and eligible-pool exhaustion stopping rules.
+- Added stopping evidence to session export and saved attempt records.
 
 ## Next Engineering Slice
 
 1. Add durable backend persistence for learners, CAT sessions, responses, and item exposure records.
-2. Add stopping rules for precision, max items, mastery thresholds, and eligible-pool exhaustion messaging.
-3. Add educator item import validation for the metadata contract.
-4. Add concept-level mastery estimates and remediation assignment status.
-5. Add cohort analytics and role-aware instructor/learner dashboards.
+2. Add educator item import validation for the metadata contract.
+3. Add concept-level mastery estimates and remediation assignment status.
+4. Add cohort analytics and role-aware instructor/learner dashboards.
+5. Add LMS/export integration boundaries for institution pilots.
