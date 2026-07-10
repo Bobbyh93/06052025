@@ -19,6 +19,14 @@ It demonstrates:
 - Session evidence export as JSON
 - Educator gates and blueprint coverage matrix
 
+## Current Implementation Structure
+
+- `public/data.js`: seeded NCLEX blueprint categories, build path, and sample item bank.
+- `public/cat-engine.js`: deterministic CAT selector, scoring, remediation, export, gate, and coverage functions.
+- `public/app.js`: browser rendering and interaction state.
+- `public/index.html`: dependency-free app shell and styles.
+- `test/cat-engine.test.mjs`: deterministic CAT engine regression checks.
+
 ## Required Production Entities
 
 - `Learner`
@@ -91,10 +99,17 @@ The prototype does not claim:
 - Production persistence
 - LMS integration
 
+## Completed Engineering Slice
+
+- Moved embedded sample data into `public/data.js`.
+- Moved CAT selection, scoring, gates, remediation, and export logic into `public/cat-engine.js`.
+- Added deterministic engine tests with `npm test`.
+- Kept the browser workflow dependency-free and runnable through `npm run dev`.
+
 ## Next Engineering Slice
 
-1. Move embedded sample data into JSON modules.
-2. Add a typed CAT session model and deterministic selector tests.
-3. Add persistent session save/load.
-4. Add item exposure and repeat-item prevention.
-5. Add educator item import validation.
+1. Add persistent session save/load.
+2. Add item exposure and repeat-item prevention across sessions.
+3. Add stopping rules for precision, max items, and mastery thresholds.
+4. Add educator item import validation.
+5. Add cohort analytics and remediation assignment workflow.
