@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "test": "node test/cat-engine.test.mjs"
+    "test": "node test/run-tests.mjs"
   },
   "keywords": [
     "nursing-education",
